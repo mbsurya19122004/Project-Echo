@@ -1,0 +1,2 @@
+MODEL = "gemma4"
+DEFAULT_TIMEOUT = 15
