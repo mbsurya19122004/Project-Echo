@@ -5,7 +5,6 @@ import subprocess
 
 from config import DEFAULT_TIMEOUT
 
-from .safety import is_dangerous
 
 import shlex
 import time
@@ -44,13 +43,7 @@ def execute_bash(command: str,timeout: int = DEFAULT_TIMEOUT,confirm_dangerous: 
         - Treat success as `success == True`, not merely the absence of stderr.
     """
     print(f"execute_bash : {command}")
-    if is_dangerous(command) and not confirm_dangerous:
-        return {
-            "success": False,
-            "stdout": "",
-            "stderr": "Dangerous command blocked. Ask for confirmation first.",
-            "returncode": -1,
-        }
+
 
     try:
         result = subprocess.run(
