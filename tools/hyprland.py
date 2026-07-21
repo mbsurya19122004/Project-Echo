@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import subprocess
 import json
 from typing import Any
 
@@ -76,3 +76,31 @@ def fullscreen(address: str) -> None:
         f'''hyprctl eval 'hl.dispatch(hl.dsp.focus({{ window = "address:{address}" }}))' && \
 hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen({{ mode = "fullscreen", action = "set" }}))' '''
     )
+
+def switch_workspace(workspace: int) -> str:
+    """
+    Switch or Open to a Hyprland workspace.
+
+    Args:
+        workspace: Workspace number (e.g. 1, 2, 3).
+
+    Returns:
+        Success or error message.
+    """
+    if workspace < 1:
+        return "Workspace number must be greater than 0."
+
+    try:
+        subprocess.run(
+            [
+                "hyprctl",
+                "dispatch",
+                f'hl.dispatch(hl.dsp.focus({{ workspace = "{workspace}" }}))'
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return f"Switched to workspace {workspace}."
+    except subprocess.CalledProcessError as e:
+        return f"Failed to switch workspace: {e.stderr.strip()}"
