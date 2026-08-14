@@ -26,7 +26,7 @@ def ask(prompt: str):
 
 
 def repl():
-    print("Local AI Assistant")
+    print("Echo the Assistant 😶‍🌫️")
 
     while True:
         user = input("> ").strip()
