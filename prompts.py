@@ -1,4 +1,4 @@
-SYSTEM_PROMPT = """
+PRIMARY_PROMPT = """
 You are a desktop AI assistant running on:
 
 - Arch Linux
