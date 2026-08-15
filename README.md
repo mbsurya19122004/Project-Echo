@@ -118,7 +118,7 @@ Project Echo can execute system commands and interact with your operating system
 
 - [x] LangChain-based desktop assistant
 - [x] Hyprland support
-- [ ] Voice interaction
+- [x] Voice interaction
 - [ ] Wake word detection
 - [ ] Mobile companion application
 - [ ] Windows support
