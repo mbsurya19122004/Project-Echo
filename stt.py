@@ -1,135 +1,21 @@
-#!/usr/bin/env python3
-
-# Real-time speech recognition from a microphone with sherpa-onnx Python API
-# with endpoint detection.
-#
-# Please refer to
-# https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html
-# to download pre-trained models
-
 import argparse
 import sys
 from pathlib import Path
-
-try:
-    import sounddevice as sd
-except ImportError:
-    print("Please install sounddevice first. You can use")
-    print()
-    print("  pip install sounddevice")
-    print()
-    print("to install it")
-    sys.exit(-1)
-
+from chat import ask
+from threading import Thread
 import sherpa_onnx
+import sounddevice as sd
 
-def get_args():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    parser.add_argument(
-        "--tokens",
-        type=str,
-        required=True,
-        help="Path to tokens.txt",
-    )
-
-    parser.add_argument(
-        "--encoder",
-        type=str,
-        required=True,
-        help="Path to the encoder model",
-    )
-
-    parser.add_argument(
-        "--decoder",
-        type=str,
-        required=True,
-        help="Path to the decoder model",
-    )
-
-    parser.add_argument(
-        "--joiner",
-        type=str,
-        required=True,
-        help="Path to the joiner model",
-    )
-
-    parser.add_argument(
-        "--decoding-method",
-        type=str,
-        default="greedy_search",
-        help="Valid values are greedy_search and modified_beam_search",
-    )
-
-    parser.add_argument(
-        "--provider",
-        type=str,
-        default="cpu",
-        help="Valid values: cpu, cuda, coreml",
-    )
-
-    parser.add_argument(
-        "--hotwords-file",
-        type=str,
-        default="",
-        help="""
-        The file containing hotwords, one words/phrases per line, and for each
-        phrase the bpe/cjkchar are separated by a space. For example:
-
-        ▁HE LL O ▁WORLD
-        你 好 世 界
-        """,
-    )
-
-    parser.add_argument(
-        "--hotwords-score",
-        type=float,
-        default=1.5,
-        help="""
-        The hotword score of each token for biasing word/phrase. Used only if
-        --hotwords-file is given.
-        """,
-    )
-
-    parser.add_argument(
-        "--blank-penalty",
-        type=float,
-        default=0.0,
-        help="""
-        The penalty applied on blank symbol during decoding.
-        Note: It is a positive value that would be applied to logits like
-        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
-        [batch_size, vocab] and blank id is 0).
-        """,
-    )
-
-    parser.add_argument(
-        "--hr-lexicon",
-        type=str,
-        default="",
-        help="If not empty, it is the lexicon.txt for homophone replacer",
-    )
-
-    parser.add_argument(
-        "--hr-rule-fsts",
-        type=str,
-        default="",
-        help="If not empty, it is the replace.fst for homophone replacer",
-    )
-
-    return parser.parse_args()
-
+SAMPLE_RATE = 48000
+CHUNK_DURATION = 0.1
+SAMPLES_PER_READ = int(SAMPLE_RATE * CHUNK_DURATION)
 
 def create_recognizer():
-
-
     recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
-        tokens="models/streaming-zipformer/tokens.txt",
-        encoder="models/streaming-zipformer/encoder-epoch-99-avg-1.onnx",
-        decoder="models/streaming-zipformer/decoder-epoch-99-avg-1.onnx",
-        joiner="models/streaming-zipformer/joiner-epoch-99-avg-1.onnx",
+        tokens="models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25/tokens.txt",
+        encoder="models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25/encoder.int8.onnx",
+        decoder="models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25/decoder.int8.onnx",
+        joiner="models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25/joiner.int8.onnx",
         num_threads=1,
         sample_rate=16000,
         feature_dim=80,
@@ -147,10 +33,7 @@ def create_recognizer():
     )
     return recognizer
 
-
-def main():
-
-
+def test_STT():
     devices = sd.query_devices()
     if len(devices) == 0:
         print("No microphone devices found")
@@ -195,9 +78,103 @@ def main():
                 recognizer.reset(stream)
 
 
-if __name__ == "__main__":
+def get_input_device():
+    device_idx = sd.default.device[0]
 
+    if device_idx is None or device_idx < 0:
+        print("No default microphone found")
+        sys.exit(1)
+
+    device = sd.query_devices(device_idx)
+
+    print(f"Using microphone: {device['name']}")
+
+    return device_idx
+
+
+def create_audio_stream(device_idx):
+    return sd.InputStream(
+        device=device_idx,
+        channels=1,
+        dtype="float32",
+        samplerate=SAMPLE_RATE,
+        blocksize=SAMPLES_PER_READ,
+    )
+
+
+def read_audio(audio_stream):
+    samples, overflowed = audio_stream.read(SAMPLES_PER_READ)
+
+    if overflowed:
+        print("Warning: audio buffer overflow")
+
+    return samples.reshape(-1)
+
+
+def feed_audio(recognizer, stream, samples):
+    stream.accept_waveform(SAMPLE_RATE, samples)
+
+
+def decode_audio(recognizer, stream):
+    while recognizer.is_ready(stream):
+        recognizer.decode_stream(stream)
+
+def get_result(recognizer, stream):
+    if not recognizer.is_endpoint(stream):
+        return None
+
+    result = recognizer.get_result(stream)
+
+    recognizer.reset(stream)
+
+    return result
+
+def handle_result(result):
+    if not result:
+        return
+
+    print("User:", result)
+
+    Thread(
+        target=ask,
+        args=(result,),
+        daemon=True
+    ).start()
+
+
+def start():
+    device_idx = get_input_device()
+
+    recognizer = create_recognizer()
+    stream = recognizer.create_stream()
+
+    print("Started! Please speak")
+
+    with create_audio_stream(device_idx) as audio_stream:
+
+        while True:
+            samples = read_audio(audio_stream)
+
+            feed_audio(
+                recognizer,
+                stream,
+                samples
+            )
+
+            decode_audio(
+                recognizer,
+                stream
+            )
+
+            result = get_result(
+                recognizer,
+                stream
+            )
+
+            handle_result(result)
+
+if __name__ == "__main__":
     try:
-        main()
+        test_STT()
     except KeyboardInterrupt:
         print("\nCaught Ctrl + C. Exiting")
