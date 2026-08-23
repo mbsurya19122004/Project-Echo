@@ -1,5 +1,6 @@
 from agent import agent
 from memory import config
+import subprocess
 
 def ask(prompt: str):
     result = agent.invoke(
@@ -17,6 +18,13 @@ def ask(prompt: str):
     message = result["messages"][-1]
 
     try:
+        subprocess.run([
+            "notify-send",
+            "-i", "/home/kashi/Desktop/Project-Echo/logo.png",
+            "Project Echo",
+            f"{message.content}"
+        ])
+        print("Gemma ::" ,end=" ")
         for block in message.content_blocks:
             print(block.get("text", ""))
     except Exception:
