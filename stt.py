@@ -143,6 +143,7 @@ def handle_result(result):
 
 
 def start():
+    ask("Are you ready??")
     device_idx = get_input_device()
 
     recognizer = create_recognizer()
