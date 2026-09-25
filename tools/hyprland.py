@@ -90,8 +90,7 @@ def switch_workspace(workspace: int) -> str:
     if workspace < 1:
         return "Workspace number must be greater than 0."
 
-    try:
-        subprocess.run(
+    subprocess.run(
             [
                 "hyprctl",
                 "dispatch",
@@ -101,6 +100,5 @@ def switch_workspace(workspace: int) -> str:
             capture_output=True,
             text=True,
         )
-        return f"Switched to workspace {workspace}."
-    except subprocess.CalledProcessError as e:
-        return f"Failed to switch workspace: {e.stderr.strip()}"
+    return f"Switched to workspace {workspace}."
+    

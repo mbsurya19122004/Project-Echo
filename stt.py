@@ -5,6 +5,7 @@ from chat import ask
 from threading import Thread
 import sherpa_onnx
 import sounddevice as sd
+import subprocess
 
 SAMPLE_RATE = 48000
 CHUNK_DURATION = 0.1
@@ -134,12 +135,23 @@ def handle_result(result):
         return
 
     print("User:", result)
-
-    Thread(
-        target=ask,
-        args=(result,),
-        daemon=True
-    ).start()
+    subprocess.run([
+                "qs",
+                "-c", "assistant-overlay",
+                "ipc",
+                "call",
+                "assistant",
+                "toggle"
+    ])
+    ask(result)
+    subprocess.run([
+                "qs",
+                "-c", "assistant-overlay",
+                "ipc",
+                "call",
+                "assistant",
+                "toggle"
+    ])
 
 
 def start():
@@ -148,6 +160,8 @@ def start():
 
     recognizer = create_recognizer()
     stream = recognizer.create_stream()
+
+
 
     print("Started! Please speak")
 
@@ -161,7 +175,6 @@ def start():
                 stream,
                 samples
             )
-
             decode_audio(
                 recognizer,
                 stream
@@ -173,6 +186,7 @@ def start():
             )
 
             handle_result(result)
+
 
 if __name__ == "__main__":
     try:
